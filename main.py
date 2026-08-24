@@ -1,68 +1,37 @@
 import os
 import asyncio
-import threading
-from flask import Flask, jsonify
+import requests
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 
 API_ID = int(os.environ.get("API_ID", 0))
 API_HASH = os.environ.get("API_HASH", "")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+CHAT_DESTINO = os.environ.get("CHAT_DESTINO", "")
+STRING_SESSION = os.environ.get("STRING_SESSION", "")
 
-# Almacén temporal del último mensaje recibido
-ultimo_mensaje = {
-    "remitente": "Sistema",
-    "texto": ""
-}
+# Usamos la sesión en texto desde las variables de Railway (Inmune a cambios de IP)
+client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
 
-app = Flask(__name__)
-
-@app.route("/", methods=["GET"])
-def index():
-    return "¡Puente de Depuración Activo!", 200
-
-@app.route("/obtener_alerta", methods=["GET"])
-def obtener_alerta():
-    global ultimo_mensaje
-    msg = ultimo_mensaje
-    # Se limpia al entregar para que el ESP32 no repita el mismo mensaje
-    ultimo_mensaje = {"remitente": "", "texto": ""} 
-    return jsonify(msg), 200
-
-def correr_flask():
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-
-client = TelegramClient('session_bridge', API_ID, API_HASH)
-
-# SIN FILTROS: Captura absolutamente todo lo que pase por tu cuenta de Telegram
-@client.on(events.NewMessage)
+@client.on(events.NewMessage(chats="@ComunidadAs04"))
 async def handler(event):
-    global ultimo_mensaje
-    try:
-        mensaje = event.message.text
-        if mensaje:
-            chat = await event.get_chat()
-            chat_title = getattr(chat, 'title', 'Privado/Desconocido')
-            remitente = "Alguien"
-            if event.sender:
-                remitente = getattr(event.sender, 'first_name', getattr(event.sender, 'username', 'Alguien'))
-            
-            print(f"💬 [DEPURACIÓN] Chat: '{chat_title}' | De: {remitente} | Texto: {mensaje}")
-            
-            ultimo_mensaje = {
-                "remitente": f"{chat_title} ({remitente})",
-                "texto": mensaje
-            }
-    except Exception as e:
-        print(f"Error procesando evento: {e}")
+    mensaje = event.message.text
+    if mensaje:
+        print(f"¡Mensaje capturado del grupo: {mensaje}")
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": CHAT_DESTINO,
+            "text": f"🚨 Alerta de la Comunidad:\n\n{mensaje}"
+        }
+        try:
+            requests.post(url, json=payload)
+        except Exception as e:
+            print(f"Error al reenviar: {e}")
 
 async def main():
-    hilo_web = threading.Thread(target=correr_flask)
-    hilo_web.daemon = True
-    hilo_web.start()
-    
-    print("Iniciando cliente de Telethon (Modo Depuración Total)...")
+    print("Iniciando puente con StringSession...")
     await client.start()
-    print("¡Conectado y escuchando sin filtros!")
+    print("¡Puente conectado y escuchando el grupo 24/7 sin riesgo de perder sesión!")
     await client.run_until_disconnected()
 
 if __name__ == '__main__':
