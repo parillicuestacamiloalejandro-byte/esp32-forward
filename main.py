@@ -32,7 +32,7 @@ def correr_flask():
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
 
-# --- CLIENTE TELETHON (Apuntando a la nueva sesión v2) ---
+# --- CLIENTE TELETHON (Apuntando a tu sesión session_bridge) ---
 client = TelegramClient('session_bridge', API_ID, API_HASH)
 
 @client.on(events.NewMessage)
@@ -45,15 +45,15 @@ async def handler(event):
         chat_id = getattr(chat, 'id', 'Sin ID')
         mensaje = event.message.text
         
-        print(f"[MENSAJE DETECTADO] Chat: '{chat_title}' | Username: @{chat_username} | ID: {chat_id} | Texto: {mensaje}")
-        
+        # Filtramos por tu grupo
         if chat_username == "ComunidadAs04" or "Comunidad" in str(chat_title) or str(chat_id) in ["1504094779", "-1001504094779"]:
             if mensaje:
                 remitente = "Comunidad"
                 if event.sender:
                     remitente = getattr(event.sender, 'first_name', 'Comunidad')
                 
-                print(f"🎯 ¡COINCIDENCIA ENCONTRADA! Enviando al ESP32 -> De: {remitente} | Texto: {mensaje}")
+                # Muestra cada mensaje del grupo en los logs de Railway y lo pasa al ESP32
+                print(f"💬 [ENVIANDO AL ESP32] Chat: '{chat_title}' | De: {remitente} | Texto: {mensaje}")
                 
                 ultimo_mensaje = {
                     "remitente": remitente,
@@ -67,9 +67,9 @@ async def main():
     hilo_web.daemon = True
     hilo_web.start()
     
-    print("Iniciando cliente de Telethon con sesión fresca...")
+    print("Iniciando cliente de Telethon (Modo Transparente)...")
     await client.start()
-    print("¡Conectado exitosamente y escuchando el grupo 24/7!")
+    print("¡Conectado exitosamente y retransmitiendo al ESP32!")
     await client.run_until_disconnected()
 
 if __name__ == '__main__':
