@@ -7,81 +7,51 @@ from telethon import TelegramClient, events
 API_ID = int(os.environ.get("API_ID", 0))
 API_HASH = os.environ.get("API_HASH", "")
 
-# Variable global para guardar el último mensaje capturado
-ultimo_mensaje = {
-    "remitente": "Sistema",
-    "texto": ""
-}
-
-# --- SERVIDOR WEB FLASK ---
 app = Flask(__name__)
 
 @app.route("/", methods=["GET"])
 def index():
-    return "¡Puente Telethon UserBot a ESP32 Activo!", 200
+    return "Diagnóstico Activo", 200
 
 @app.route("/obtener_alerta", methods=["GET"])
 def obtener_alerta():
-    global ultimo_mensaje
-    msg = ultimo_mensaje
-    # Limpiamos el mensaje después de entregarlo para que el ESP32 no lo repita
-    ultimo_mensaje = {"remitente": "", "texto": ""} 
-    return jsonify(msg), 200
+    return jsonify({"remitente": "Sistema", "texto": ""}), 200
 
 def correr_flask():
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
 
-# --- CLIENTE TELETHON (UserBot) ---
-# Usamos un nombre fijo para la sesión
 client = TelegramClient('session_bridge_v2', API_ID, API_HASH)
 
 @client.on(events.NewMessage)
 async def handler(event):
-    global ultimo_mensaje
     try:
         chat = await event.get_chat()
-        chat_title = getattr(chat, 'title', getattr(chat, 'username', 'Chat privado'))
-        chat_username = getattr(chat, 'username', 'Sin username')
-        chat_id = getattr(chat, 'id', 'Sin ID')
+        chat_title = getattr(chat, 'title', getattr(chat, 'username', 'Chat'))
+        chat_username = getattr(chat, 'username', '')
+        chat_id = getattr(chat, 'id', '')
         mensaje = event.message.text
         
         # Filtramos por tu grupo
         if chat_username == "ComunidadAs04" or "Comunidad" in str(chat_title) or str(chat_id) in ["1504094779", "-1001504094779"]:
             if mensaje:
-                texto_lower = mensaje.lower()
-                
-                # Detecta si el mensaje contiene tanto "activo" como "bdv" (juntos o separados)
-                if "activo" in texto_lower and "bdv" in texto_lower:
-                    remitente = "Comunidad"
-                    if event.sender:
-                        remitente = getattr(event.sender, 'first_name', 'Comunidad')
-                    
-                    print(f"🚨 ¡ALERTA BDV DETECTADA! De: {remitente} | Texto: {mensaje}")
-                    
-                    ultimo_mensaje = {
-                        "remitente": remitente,
-                        "texto": mensaje
-                    }
+                remitente = event.sender.first_name if event.sender else "Alguien"
+                # Muestra CADA mensaje que se mande en el grupo
+                print(f"💬 [DIAGNÓSTICO] De {remitente}: {mensaje}")
     except Exception as e:
-        print(f"Error procesando evento: {e}")
+        print(f"Error: {e}")
 
 async def main():
     hilo_web = threading.Thread(target=correr_flask)
     hilo_web.daemon = True
     hilo_web.start()
     
-    print("Iniciando UserBot de Telethon...")
-    
-    # Conectamos utilizando la sesión guardada
+    print("Iniciando MODO DIAGNÓSTICO...")
     await client.connect()
-    
     if not await client.is_user_authorized():
-        print("❌ ERROR CRÍTICO: La sesión no está autorizada o no se encuentra el archivo .session.")
-        print("Asegúrate de haber subido 'session_bridge_v2.session' a tu repositorio de GitHub.")
+        print("❌ Error de sesión.")
         return
-
-    print("¡Conectado exitosamente con tu cuenta (UserBot) y escuchando alertas!")
+    print("¡Escuchando todos los mensajes del grupo!")
     await client.run_until_disconnected()
 
 if __name__ == '__main__':
