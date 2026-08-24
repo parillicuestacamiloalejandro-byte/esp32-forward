@@ -33,7 +33,7 @@ def correr_flask():
     app.run(host="0.0.0.0", port=port)
 
 # --- CLIENTE TELETHON ---
-client = TelegramClient('session_bridge', API_ID, API_HASH)
+client = TelegramClient('session_bridge_v2', API_ID, API_HASH)
 
 @client.on(events.NewMessage)
 async def handler(event):
@@ -45,22 +45,25 @@ async def handler(event):
         chat_id = getattr(chat, 'id', 'Sin ID')
         mensaje = event.message.text
         
-        # LOG DE DIAGNÓSTICO: Imprime todo lo que ve tu cuenta en tiempo real
-        print(f"[MENSAJE DETECTADO] Chat: '{chat_title}' | Username: @{chat_username} | ID: {chat_id} | Texto: {mensaje}")
-        
-        # Capturamos si coincide con el username o si el título del chat se parece
+        # Filtramos primero por el grupo correcto
         if chat_username == "ComunidadAs04" or "Comunidad" in str(chat_title) or str(chat_id) in ["1504094779", "-1001504094779"]:
             if mensaje:
-                remitente = "Comunidad"
-                if event.sender:
-                    remitente = getattr(event.sender, 'first_name', 'Comunidad')
+                # Convertimos el mensaje a minúsculas para buscar "activo bdv" sin importar mayúsculas/minúsculas
+                mensaje_lower = mensaje.lower()
                 
-                print(f"🎯 ¡COINCIDENCIA ENCONTRADA! Enviando al ESP32 -> De: {remitente} | Texto: {mensaje}")
-                
-                ultimo_mensaje = {
-                    "remitente": remitente,
-                    "texto": mensaje
-                }
+                if "activo bdv" in mensaje_lower:
+                    remitente = "Comunidad"
+                    if event.sender:
+                        remitente = getattr(event.sender, 'first_name', 'Comunidad')
+                    
+                    print(f"🚨 ¡ALERTA BDV DETECTADA! De: {remitente} | Texto: {mensaje}")
+                    
+                    ultimo_mensaje = {
+                        "remitente": remitente,
+                        "texto": mensaje
+                    }
+                else:
+                    print(f"[Ignorado] Mensaje sin la palabra clave en grupo: {mensaje}")
     except Exception as e:
         print(f"Error procesando evento: {e}")
 
@@ -69,9 +72,9 @@ async def main():
     hilo_web.daemon = True
     hilo_web.start()
     
-    print("Iniciando cliente de Telethon...")
+    print("Iniciando cliente de Telethon con filtro de BDV...")
     await client.start()
-    print("¡Conectado exitosamente con tu cuenta y escuchando en modo diagnóstico!")
+    print("¡Conectado exitosamente y escuchando alertas!")
     await client.run_until_disconnected()
 
 if __name__ == '__main__':
