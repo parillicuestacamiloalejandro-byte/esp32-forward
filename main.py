@@ -1,36 +1,37 @@
 import os
+import asyncio
 import requests
-from flask import Flask, request
+from telethon import TelegramClient, events
 
-app = Flask(__name__)
-
+# Cargar variables de entorno configuradas en Railway
+API_ID = int(os.environ.get("API_ID", 0))
+API_HASH = os.environ.get("API_HASH", "")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 CHAT_DESTINO = os.environ.get("CHAT_DESTINO", "")
 
-@app.route("/", methods=["GET", "POST"])
-def webhook():
-    if request.method == "POST":
-        data = request.json
-        if data:
-            # Detecta mensajes de canales o grupos donde esté el bot
-            mensaje = ""
-            if "message" in data:
-                mensaje = data["message"].get("text", "")
-            elif "channel_post" in data:
-                mensaje = data["channel_post"].get("text", "")
+# Telethon buscará automáticamente el archivo session_bridge.session que subiste
+client = TelegramClient('session_bridge', API_ID, API_HASH)
 
-            if mensaje:
-                print(f"Mensaje recibido: {mensaje}")
-                # Reenviar al chat destino (tu ESP32)
-                url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                payload = {
-                    "chat_id": CHAT_DESTINO,
-                    "text": f"🚨 Alerta:\n\n{mensaje}"
-                }
-                requests.post(url, json=payload)
-                
-    return "OK", 200
+@client.on(events.NewMessage(chats="@ComunidadAs04"))
+async def handler(event):
+    mensaje = event.message.text
+    if mensaje:
+        print(f"¡Mensaje capturado del grupo: {mensaje}")
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": CHAT_DESTINO,
+            "text": f"🚨 Alerta de la Comunidad:\n\n{mensaje}"
+        }
+        try:
+            requests.post(url, json=payload)
+        except Exception as e:
+            print(f"Error al reenviar: {e}")
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+async def main():
+    print("Iniciando puente con tu sesión en la nube...")
+    await client.start()
+    print("¡Puente conectado y escuchando el grupo 24/7!")
+    await client.run_until_disconnected()
+
+if __name__ == '__main__':
+    asyncio.run(main())
