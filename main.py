@@ -65,35 +65,3 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-        if mensaje:
-            remitente = "Alguien"
-            if event.sender:
-                remitente = getattr(event.sender, 'first_name', getattr(event.sender, 'username', 'Alguien'))
-            
-            print(f"💬 [CAPTURADO] De {remitente}: {mensaje}")
-            
-            # Guardamos inmediatamente para que el ESP32 se lo lleve
-            ultimo_mensaje = {
-                "remitente": remitente,
-                "texto": mensaje
-            }
-    except Exception as e:
-        print(f"Error procesando mensaje: {e}")
-
-async def main():
-    hilo_web = threading.Thread(target=correr_flask)
-    hilo_web.daemon = True
-    hilo_web.start()
-    
-    print("Iniciando cliente con StringSession y escucha optimizada...")
-    await client.connect()
-    
-    if not await client.is_user_authorized():
-        print("❌ Error: SESSION_STRING inválida o expirada.")
-        return
-        
-    print("¡Conectado exitosamente y escuchando el grupo 24/7!")
-    await client.run_until_disconnected()
-
-if __name__ == '__main__':
-    asyncio.run(main())
