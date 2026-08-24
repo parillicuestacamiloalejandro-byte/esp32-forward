@@ -1,23 +1,24 @@
 import os
+import asyncio
 import threading
-import time
-import requests
 from flask import Flask, jsonify
+from telethon import TelegramClient, events
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+API_ID = int(os.environ.get("API_ID", 0))
+API_HASH = os.environ.get("API_HASH", "")
 
-# Variable global para guardar la última alerta filtrada
+# Variable global para guardar el último mensaje capturado
 ultimo_mensaje = {
     "remitente": "Sistema",
     "texto": ""
 }
 
-# --- SERVIDOR WEB FLASK PARA EL ESP32 ---
+# --- SERVIDOR WEB FLASK ---
 app = Flask(__name__)
 
 @app.route("/", methods=["GET"])
 def index():
-    return "¡Servidor Bot a ESP32 Activo!", 200
+    return "¡Puente Telethon UserBot a ESP32 Activo!", 200
 
 @app.route("/obtener_alerta", methods=["GET"])
 def obtener_alerta():
@@ -31,51 +32,57 @@ def correr_flask():
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
 
-# --- BUCLE DE POLLING PARA LEER TELEGRAM (SIN ARCHIVOS DE SESIÓN) ---
-def escuchar_telegram():
-    global ultimo_mensaje
-    offset = 0
-    print("🤖 Bot iniciado y escuchando mensajes del grupo vía API de Telegram...")
-    
-    url_base = f"https://api.telegram.org/bot{BOT_TOKEN}"
-    
-    while True:
-        try:
-            response = requests.get(f"{url_base}/getUpdates", params={"offset": offset, "timeout": 30})
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("ok"):
-                    for result in data.get("result", []):
-                        offset = result["update_id"] + 1
-                        
-                        message = result.get("message") or result.get("channel_post")
-                        if message:
-                            texto = message.get("text", "")
-                            chat = message.get("chat", {})
-                            chat_username = chat.get("username", "")
-                            chat_title = chat.get("title", "Grupo")
-                            
-                            # Filtramos por tu grupo y por la frase "activo bdv"
-                            if chat_username == "ComunidadAs04" or "Comunidad" in chat_title:
-                                if texto:
-                                    texto_lower = texto.lower()
-                                    if "activo bdv" in texto_lower:
-                                        from_user = message.get("from", {})
-                                        remitente = from_user.get("first_name", "Comunidad")
-                                        
-                                        print(f"🚨 ¡ALERTA BDV DETECTADA! De: {remitente} | Texto: {texto}")
-                                        
-                                        ultimo_mensaje = {
-                                            "remitente": remitente,
-                                            "texto": texto
-                                        }
-        except Exception as e:
-            print(f"Error en bucle de Telegram: {e}")
-            time.sleep(5)
+# --- CLIENTE TELETHON (UserBot) ---
+# Usamos un nombre fijo para la sesión
+client = TelegramClient('session_bridge_v2', API_ID, API_HASH)
 
-if __name__ == '__main__':
+@client.on(events.NewMessage)
+async def handler(event):
+    global ultimo_mensaje
+    try:
+        chat = await event.get_chat()
+        chat_title = getattr(chat, 'title', getattr(chat, 'username', 'Chat privado'))
+        chat_username = getattr(chat, 'username', 'Sin username')
+        chat_id = getattr(chat, 'id', 'Sin ID')
+        mensaje = event.message.text
+        
+        # Filtramos por tu grupo
+        if chat_username == "ComunidadAs04" or "Comunidad" in str(chat_title) or str(chat_id) in ["1504094779", "-1001504094779"]:
+            if mensaje:
+                texto_lower = mensaje.lower()
+                
+                # Detecta si el mensaje contiene tanto "activo" como "bdv" (juntos o separados)
+                if "activo" in texto_lower and "bdv" in texto_lower:
+                    remitente = "Comunidad"
+                    if event.sender:
+                        remitente = getattr(event.sender, 'first_name', 'Comunidad')
+                    
+                    print(f"🚨 ¡ALERTA BDV DETECTADA! De: {remitente} | Texto: {mensaje}")
+                    
+                    ultimo_mensaje = {
+                        "remitente": remitente,
+                        "texto": mensaje
+                    }
+    except Exception as e:
+        print(f"Error procesando evento: {e}")
+
+async def main():
     hilo_web = threading.Thread(target=correr_flask)
     hilo_web.daemon = True
     hilo_web.start()
     
-    escuchar_telegram()
+    print("Iniciando UserBot de Telethon...")
+    
+    # Conectamos utilizando la sesión guardada
+    await client.connect()
+    
+    if not await client.is_user_authorized():
+        print("❌ ERROR CRÍTICO: La sesión no está autorizada o no se encuentra el archivo .session.")
+        print("Asegúrate de haber subido 'session_bridge_v2.session' a tu repositorio de GitHub.")
+        return
+
+    print("¡Conectado exitosamente con tu cuenta (UserBot) y escuchando alertas!")
+    await client.run_until_disconnected()
+
+if __name__ == '__main__':
+    asyncio.run(main())
