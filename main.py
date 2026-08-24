@@ -31,7 +31,7 @@ def correr_flask():
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
 
-# --- CLIENTE TELETHON (Usando tu archivo físico session_bridge.session) ---
+# --- CLIENTE TELETHON ---
 client = TelegramClient('session_bridge', API_ID, API_HASH)
 
 @client.on(events.NewMessage(chats=[-1001504094779, 1504094779]))
@@ -44,7 +44,8 @@ async def handler(event):
             if event.sender:
                 remitente = getattr(event.sender, 'first_name', getattr(event.sender, 'username', 'Alguien'))
             
-            print(f"💬 [CAPTURADO] De {remitente}: {mensaje}")
+            # Muestra TODOS los mensajes en los logs de Railway
+            print(f"💬 [LOG GENERAL] De {remitente}: {mensaje}")
             
             ultimo_mensaje = {
                 "remitente": remitente,
@@ -58,9 +59,9 @@ async def main():
     hilo_web.daemon = True
     hilo_web.start()
     
-    print("Iniciando cliente de Telethon con archivo session_bridge...")
+    print("Iniciando cliente de Telethon...")
     await client.start()
-    print("¡Conectado exitosamente y escuchando el grupo 24/7!")
+    print("¡Conectado exitosamente y transmitiendo todo al ESP32!")
     await client.run_until_disconnected()
 
 if __name__ == '__main__':
