@@ -1,37 +1,36 @@
 import os
-import asyncio
 import requests
-from telethon import TelegramClient, events
+from flask import Flask, request
 
-API_ID = int(os.environ.get("API_ID", 0))
-API_HASH = os.environ.get("API_HASH", "")
+app = Flask(__name__)
+
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-
-CANAL_ORIGEN = os.environ.get("CANAL_ORIGEN", "") 
 CHAT_DESTINO = os.environ.get("CHAT_DESTINO", "")
 
-client = TelegramClient('session_bridge', API_ID, API_HASH)
+@app.route("/", methods=["GET", "POST"])
+def webhook():
+    if request.method == "POST":
+        data = request.json
+        if data:
+            # Detecta mensajes de canales o grupos donde esté el bot
+            mensaje = ""
+            if "message" in data:
+                mensaje = data["message"].get("text", "")
+            elif "channel_post" in data:
+                mensaje = data["channel_post"].get("text", "")
 
-@client.on(events.NewMessage(chats=CANAL_ORIGEN))
-async def handler(event):
-    mensaje = event.message.text
-    if mensaje:
-        print(f"Mensaje capturado: {mensaje}")
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        payload = {
-            "chat_id": CHAT_DESTINO,
-            "text": f"🚨 Alerta del Canal:\n\n{mensaje}"
-        }
-        try:
-            requests.post(url, json=payload)
-        except Exception as e:
-            print(f"Error al reenviar: {e}")
+            if mensaje:
+                print(f"Mensaje recibido: {mensaje}")
+                # Reenviar al chat destino (tu ESP32)
+                url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                payload = {
+                    "chat_id": CHAT_DESTINO,
+                    "text": f"🚨 Alerta:\n\n{mensaje}"
+                }
+                requests.post(url, json=payload)
+                
+    return "OK", 200
 
-async def main():
-    print("Iniciando cliente de puente Telegram...")
-    await client.start(bot_token=BOT_TOKEN)
-    print("¡Puente conectado y escuchando 24/7!")
-    await client.run_until_disconnected()
-
-if __name__ == '__main__':
-    asyncio.run(main())
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
